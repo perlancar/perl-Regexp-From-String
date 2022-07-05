@@ -15,7 +15,7 @@ our @EXPORT_OK = qw(str_to_re);
 sub str_to_re {
     my $str = shift;
     if ($str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
-        my $re = eval(substr($str, 0, 2) eq 'qr' ? $str : "qr$str");
+        my $re = eval(substr($str, 0, 2) eq 'qr' ? $str : "qr$str"); ## no critic: BuiltinFunctions::ProhibitStringyEval
         die if $@;
         return $re;
     }
