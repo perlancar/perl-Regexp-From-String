@@ -25,15 +25,17 @@ sub str_maybe_to_re {
 sub str_to_re {
     my $opts = ref $_[0] eq 'HASH' ? shift : {};
     my $str = shift;
-    if ($str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
+    if (!$opts->{always_quote} && $str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
         my $re = eval(substr($str, 0, 2) eq 'qr' ? $str : "qr$str"); ## no critic: BuiltinFunctions::ProhibitStringyEval
         die if $@;
         return $re;
     } else {
         $str = quotemeta($str);
-        return $opts->{anchored} ?
-            ($opts->{case_insensitive} ? qr/\A$str\z/i : qr/\A$str\z/) :
-            ($opts->{case_insensitive} ? qr/$str/i     : qr/$str/);
+        if ($opts->{anchored}) {
+            if ($opts->{case_insensitive}) { return qr/\A$str\z/i } else { return qr/\A$str\z/ }
+        } else {
+            if ($opts->{case_insensitive}) { return qr/$str/i     } else { return qr/$str/     }
+        }
     }
     $str;
 }
@@ -57,6 +59,8 @@ sub str_to_re {
  my $re2 = str_to_re({anchored=>1}, 'foo[]');          # compiled to Regexp object qr(\Afoo\[\]\z)
  my $re3 = str_to_re('/foo/');      # compiled to Regexp object qr(foo)
  my $re4 = str_to_re('qr(foo)i');   # compiled to Regexp object qr(foo)i
+ my $re4 = str_to_re('qr(foo.)');   # compiled to Regexp object qr(foo.)
+ my $re4 = str_to_re({always_quote=>1}, 'qr(foo.)');  # compiled to Regexp object qr(qr\(foo\.\))
  my $re5 = str_to_re('qr(foo[)i');  # dies, invalid regex syntax
 
 
@@ -96,11 +100,18 @@ in first argument hashref C<\%opts>:
 
 =over
 
-=item case_insensitive
+=item * always_quote
+
+Bool. If set to true, will always C<quotemeta()> regardless of whether the
+string is in the form of C</.../> or C<qr(...)> or not. This means user will not
+be able to use metacharacters and the Regexp will only match the literal string
+(with some option like anchoring and case-sensitivity, see other options).
+
+=item * case_insensitive
 
 Bool. If set to true will compile to Regexp object with C<i> regexp modifier.
 
-=item anchored
+=item * anchored
 
 Bool. If set to true will anchor the pattern with C<\A> and C<\z>.
 
