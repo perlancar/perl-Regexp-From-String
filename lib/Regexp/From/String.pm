@@ -14,12 +14,15 @@ our @EXPORT_OK = qw(str_maybe_to_re str_to_re);
 
 sub _str_maybe_to_re_or_to_re {
     my $which = shift;
+
     my $opts = ref $_[0] eq 'HASH' ? {%{shift()}} : {};
     my $opt_ci1 = delete($opts->{ci});
     my $opt_ci2 = delete $opts->{case_insensitive}; # so we delete both ci & this
     my $opt_ci  = defined $opt_ci1 ? $opt_ci1 : defined $opt_ci2 ? $opt_ci2 : 0;
     my $opt_always_quote = delete $opts->{always_quote};
     my $opt_anchored = delete $opts->{anchored}; $opt_anchored = 0 unless defined $opt_anchored;
+    die "Unknown option(s): ".join(", ", sort keys %$opts) if keys %$opts;
+
     my $str = shift;
 
     if (!$opt_always_quote && $str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {

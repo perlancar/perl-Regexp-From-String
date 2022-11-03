@@ -8,6 +8,8 @@ use Test::More 0.98;
 use Regexp::From::String qw(str_maybe_to_re str_to_re);
 
 subtest str_maybe_to_re => sub {
+    dies_ok { str_maybe_to_re({foo=>1}, 'bar') } 'unknown option -> dies';
+
     is_deeply(str_maybe_to_re('foo'), 'foo');
     is_deeply(str_maybe_to_re('/foo'), '/foo');
     is_deeply(str_maybe_to_re('qr(foo'), 'qr(foo');
@@ -31,6 +33,8 @@ subtest str_maybe_to_re => sub {
 };
 
 subtest str_to_re => sub {
+    dies_ok { str_to_re({foo=>1}, 'bar') } 'unknown option -> dies';
+
     is_deeply(str_to_re('foo['), qr(foo\[));
     is_deeply(str_to_re('/foo'), qr(\/foo));
     is_deeply(str_to_re({case_insensitive=>1}, '/foo'), qr(\/foo)i);
