@@ -12,32 +12,41 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(str_maybe_to_re str_to_re);
 
-sub str_maybe_to_re {
+sub _str_maybe_to_re_or_to_re {
+    my $which = shift;
+    my $opts = ref $_[0] eq 'HASH' ? {%{shift()}} : {};
+    my $opt_ci1 = delete($opts->{ci});
+    my $opt_ci2 = delete $opts->{case_insensitive}; # so we delete both ci & this
+    my $opt_ci  = defined $opt_ci1 ? $opt_ci1 : defined $opt_ci2 ? $opt_ci2 : 0;
+    my $opt_always_quote = delete $opts->{always_quote};
+    my $opt_anchored = delete $opts->{anchored}; $opt_anchored = 0 unless defined $opt_anchored;
     my $str = shift;
-    if ($str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
-        my $re = eval(substr($str, 0, 2) eq 'qr' ? $str : "qr$str"); ## no critic: BuiltinFunctions::ProhibitStringyEval
-        die if $@;
-        return $re;
-    }
-    $str;
-}
 
-sub str_to_re {
-    my $opts = ref $_[0] eq 'HASH' ? shift : {};
-    my $str = shift;
-    if (!$opts->{always_quote} && $str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
-        my $re = eval(substr($str, 0, 2) eq 'qr' ? $str : "qr$str"); ## no critic: BuiltinFunctions::ProhibitStringyEval
+    if (!$opt_always_quote && $str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
+        my $code = "my \$re = " . (substr($str, 0, 2) eq 'qr' ? $str : "qr$str");
+        $code .= "i" if $opt_ci;
+        $code .= "; \$re = qr(\\A\$re\\z)" if $opt_anchored;
+        #print "D: $code\n";
+        my $re = eval $code; ## no critic: BuiltinFunctions::ProhibitStringyEval
         die if $@;
         return $re;
     } else {
+        return $str if $which eq 'maybe_to';
+
         $str = quotemeta($str);
-        if ($opts->{anchored}) {
-            if ($opts->{case_insensitive}) { return qr/\A$str\z/i } else { return qr/\A$str\z/ }
-        } else {
-            if ($opts->{case_insensitive}) { return qr/$str/i     } else { return qr/$str/     }
-        }
+        my $re = $opt_anchored ?
+            ($opt_ci ? qr/\A$str\z/i : qr/\A$str\z/) :
+            ($opt_ci ? qr/$str/i     : qr/$str/);
+        return $re;
     }
-    $str;
+}
+
+sub str_maybe_to_re {
+    _str_maybe_to_re_or_to_re('maybe_to', @_);
+}
+
+sub str_to_re {
+    _str_maybe_to_re_or_to_re('to', @_);
 }
 
 1;
@@ -59,7 +68,7 @@ sub str_to_re {
  my $re2 = str_to_re({anchored=>1}, 'foo.');            # compiled to Regexp object qr(\Afoo\.\z)
  my $re3 = str_to_re('/foo./');     # compiled to Regexp object qr(foo) (metacharacters are allowed)
  my $re4 = str_to_re('qr(foo.)i');  # compiled to Regexp object qr(foo.)i
- my $re4 = str_to_re({always_quote=>1}, 'qr(foo.)');  # compiled to Regexp object qr(qr\(foo\.\)) (metacharacters are quoted)
+ my $re4 = str_to_re({always_quote=>1}, 'qr(foo.)');  # compiled to Regexp object qr(qr\(foo\.\)s) (the whole string is quotemeta'ed)
  my $re5 = str_to_re('qr(foo[)i');  # dies, invalid regex syntax
 
 
@@ -71,7 +80,7 @@ Maybe convert string to Regexp object.
 
 Usage:
 
- $str_or_re = str_maybe_to_re($str);
+ $str_or_re = str_maybe_to_re([ \%opts , ] $str);
 
 Check if string C<$str> is in the form of C</.../> or C<qr(...)'> and if so,
 compile the inside regex (currently simply using stringy C<eval>) and return the
@@ -83,6 +92,8 @@ For the C<qr(...)> form, unlike in Perl, currently only the C<()> delimiter
 characters are recognized and not others.
 
 Optional modifiers C<i>, C<m>, and C<s> are currently allowed at the end.
+
+Recognize some options, see L</str_to_re> for more details.
 
 =head2 str_to_re
 
@@ -101,22 +112,31 @@ in first argument hashref C<\%opts>:
 
 =item * always_quote
 
-Bool. Default false. If set to true, will always C<quotemeta()> regardless of
-whether the string is in the form of C</.../> or C<qr(...)> or not. This means
-user will not be able to use metacharacters and the Regexp will only match the
-literal string (with some option like anchoring and case-sensitivity, see other
-options).
+Bool. Default is false. If set to true then will always quote the whole string
+regardless of whether the string is in the form of C</.../> or C<qr(...)>. This
+means user will not be able to use metacharacters and the Regexp will only match
+the literal string (with some option like anchoring and case-sensitivity, see
+other options).
 
-Defaults to false because the point of this function is to allow specifying
+Defaults to false because the main point of this function is to allow specifying
 regex.
 
 =item * case_insensitive
 
-Bool. If set to true will compile to Regexp object with C<i> regexp modifier.
+Bool, default is false.
+
+If set to true will compile to regexp with the /i modifier. This includes when
+the string is in the form of C</.../> or C<qr(...)> (the /i is added).
+
+=item * ci
+
+Integer, alias for C<case_insensitive>.
 
 =item * anchored
 
-Bool. If set to true will anchor the pattern with C<\A> and C<\z>.
+Bool. If set to true will anchor the pattern with C<\A> and C<\z>. This includes
+when the string is in the form of C</.../> or C<qr(...)> (the regexp will be
+enclosed with anchor).
 
 =back
 
