@@ -17,7 +17,7 @@ sub _str_maybe_to_re_or_to_re {
 
     my $opts = ref $_[0] eq 'HASH' ? {%{shift()}} : {};
     my $opt_ci1 = delete($opts->{ci});
-    my $opt_ci2 = delete $opts->{case_insensitive}; # so we delete both ci & this
+    my $opt_ci2 = delete $opts->{case_insensitive}; # so we delete both ci & this. case_insensitive is deprecated and no longer documented.
     my $opt_ci  = defined $opt_ci1 ? $opt_ci1 : defined $opt_ci2 ? $opt_ci2 : 0;
     my $opt_always_quote = delete $opts->{always_quote};
     my $opt_anchored = delete $opts->{anchored}; $opt_anchored = 0 unless defined $opt_anchored;
@@ -67,8 +67,8 @@ sub str_to_re {
 
  my $re1 = str_to_re('foo.');       # compiled to Regexp object qr(foo\.) (metacharacters are quoted)
  my $re2 = str_to_re('/foo.');      # compiled to Regexp object qr(/foo\.)
- my $re2 = str_to_re({case_insensitive=>1}, 'foo.');    # compiled to Regexp object qr(foo\.)i
- my $re2 = str_to_re({anchored=>1}, 'foo.');            # compiled to Regexp object qr(\Afoo\.\z)
+ my $re2 = str_to_re({ci=>1}, 'foo.');        # compiled to Regexp object qr(foo\.)i
+ my $re2 = str_to_re({anchored=>1}, 'foo.');  # compiled to Regexp object qr(\Afoo\.\z)
  my $re3 = str_to_re('/foo./');     # compiled to Regexp object qr(foo) (metacharacters are allowed)
  my $re4 = str_to_re('qr(foo.)i');  # compiled to Regexp object qr(foo.)i
  my $re4 = str_to_re({always_quote=>1}, 'qr(foo.)');  # compiled to Regexp object qr(qr\(foo\.\)s) (the whole string is quotemeta'ed)
@@ -124,16 +124,13 @@ other options).
 Defaults to false because the main point of this function is to allow specifying
 regex.
 
-=item * case_insensitive
+=item * ci
 
 Bool, default is false.
 
-If set to true will compile to regexp with the /i modifier. This includes when
-the string is in the form of C</.../> or C<qr(...)> (the /i is added).
-
-=item * ci
-
-Integer, alias for C<case_insensitive>.
+If set to true will compile to regexp with the /i modifier, so matching is done
+case-insensitively. This includes when the string is in the form of C</.../> or
+C<qr(...)> (the /i is also added).
 
 =item * anchored
 
