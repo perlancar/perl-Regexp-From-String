@@ -47,20 +47,19 @@ sub str_to_re {
 
  use Regexp::From::String qw(str_maybe_to_re str_to_re);
 
- my $re1 = str_maybe_to_re('foo');        # stays as string 'foo'
- my $re2 = str_maybe_to_re('/foo');       # stays as string '/foo'
- my $re3 = str_maybe_to_re('/foo/');      # compiled to Regexp object qr(foo)
- my $re4 = str_maybe_to_re('qr(foo)i');   # compiled to Regexp object qr(foo)i
+ my $re1 = str_maybe_to_re('foo.');       # stays as string 'foo.'
+ my $re2 = str_maybe_to_re('/foo.');      # stays as string '/foo.'
+ my $re3 = str_maybe_to_re('/foo./');     # compiled to Regexp object qr(foo.) (metacharacters are allowed)
+ my $re4 = str_maybe_to_re('qr(foo.)i');  # compiled to Regexp object qr(foo.)i
  my $re5 = str_maybe_to_re('qr(foo[)i');  # dies, invalid regex syntax
 
- my $re1 = str_to_re('foo');        # compiled to Regexp object qr(foo)
- my $re2 = str_to_re('/foo');       # compiled to Regexp object qr(/foo)
- my $re2 = str_to_re({case_insensitive=>1}, 'foo[]');  # compiled to Regexp object qr(foo\[\])i
- my $re2 = str_to_re({anchored=>1}, 'foo[]');          # compiled to Regexp object qr(\Afoo\[\]\z)
- my $re3 = str_to_re('/foo/');      # compiled to Regexp object qr(foo)
- my $re4 = str_to_re('qr(foo)i');   # compiled to Regexp object qr(foo)i
- my $re4 = str_to_re('qr(foo.)');   # compiled to Regexp object qr(foo.)
- my $re4 = str_to_re({always_quote=>1}, 'qr(foo.)');  # compiled to Regexp object qr(qr\(foo\.\))
+ my $re1 = str_to_re('foo.');       # compiled to Regexp object qr(foo\.) (metacharacters are quoted)
+ my $re2 = str_to_re('/foo.');      # compiled to Regexp object qr(/foo\.)
+ my $re2 = str_to_re({case_insensitive=>1}, 'foo.');    # compiled to Regexp object qr(foo\.)i
+ my $re2 = str_to_re({anchored=>1}, 'foo.');            # compiled to Regexp object qr(\Afoo\.\z)
+ my $re3 = str_to_re('/foo./');     # compiled to Regexp object qr(foo) (metacharacters are allowed)
+ my $re4 = str_to_re('qr(foo.)i');  # compiled to Regexp object qr(foo.)i
+ my $re4 = str_to_re({always_quote=>1}, 'qr(foo.)');  # compiled to Regexp object qr(qr\(foo\.\)) (metacharacters are quoted)
  my $re5 = str_to_re('qr(foo[)i');  # dies, invalid regex syntax
 
 
@@ -102,10 +101,14 @@ in first argument hashref C<\%opts>:
 
 =item * always_quote
 
-Bool. If set to true, will always C<quotemeta()> regardless of whether the
-string is in the form of C</.../> or C<qr(...)> or not. This means user will not
-be able to use metacharacters and the Regexp will only match the literal string
-(with some option like anchoring and case-sensitivity, see other options).
+Bool. Default false. If set to true, will always C<quotemeta()> regardless of
+whether the string is in the form of C</.../> or C<qr(...)> or not. This means
+user will not be able to use metacharacters and the Regexp will only match the
+literal string (with some option like anchoring and case-sensitivity, see other
+options).
+
+Defaults to false because the point of this function is to allow specifying
+regex.
 
 =item * case_insensitive
 
