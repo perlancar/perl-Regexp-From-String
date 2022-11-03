@@ -1,3 +1,11 @@
+0.006   2022-11-04  Released-By: PERLANCAR; Urgency: low
+
+        - No functional changes.
+
+        - Deprecate the case_insensitive option in favor of ci, the former
+          is now no longer documented (but still supported).
+
+
 0.005   2022-11-03  Released-By: PERLANCAR; Urgency: medium
 
         - Also allow options for str_maybe_to_re().
