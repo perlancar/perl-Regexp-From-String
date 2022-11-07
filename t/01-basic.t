@@ -5,6 +5,7 @@ use warnings;
 use Test::Exception;
 use Test::More 0.98;
 
+use Capture::Tiny qw(capture);
 use Regexp::From::String qw(str_maybe_to_re str_to_re);
 
 subtest str_maybe_to_re => sub {
@@ -29,7 +30,23 @@ subtest str_maybe_to_re => sub {
         is_deeply(str_maybe_to_re({anchored=>1}, '/foo/'), qr(\A(?^:foo)\z));
     }
 
-    dies_ok { str_maybe_to_re('/foo(/') };
+    dies_ok { str_maybe_to_re('/foo(/') } 'invalid pattern -> dies';
+
+    # safety option
+    {
+        local $_ = "";
+        $main::tmp = 0; dies_ok { str_maybe_to_re(             '//   and ($main::tmp = 1 and   //') } 'unsafe //   (safety 1) -> dies';
+        $main::tmp = 0; dies_ok { str_maybe_to_re(             'qr() and ($main::tmp = 1 and qr()') } 'unsafe qr() (safety 1) -> dies';
+        $main::tmp = 0; dies_ok { str_maybe_to_re(             '/(?{   $main::tmp = 1                          })/') } 'embedded code in //   (safety 1) -> dies';
+        $main::tmp = 0; dies_ok { str_maybe_to_re(             'qr((?{ $main::tmp = 1                          }))') } 'embedded code in qr() (safety 1) -> dies';
+
+        # XXX test safety=1
+
+        $main::tmp = 0; str_maybe_to_re({safety=>0}, '//   and $main::tmp = 1 and   //'); ok($main::tmp, 'unsafe //   (safety 0) -> ok');
+        $main::tmp = 0; str_maybe_to_re({safety=>0}, 'qr() and $main::tmp = 1 and qr()'); ok($main::tmp, 'unsafe qr() (safety 0) -> ok');
+        $main::tmp = 0; lives_ok { str_maybe_to_re({safety=>0}, '/(?{   $main::tmp = 1                          })/') } 'embedded code in //   (safety 0) -> ok';
+        $main::tmp = 0; lives_ok { str_maybe_to_re({safety=>0}, 'qr((?{ $main::tmp = 1                          }))') } 'embedded code in qr() (safety 0) -> ok';
+    }
 };
 
 subtest str_to_re => sub {
@@ -53,6 +70,8 @@ subtest str_to_re => sub {
     }
 
     dies_ok { str_to_re('/foo(/') };
+
+    # XXX test safety option too
 };
 
 DONE_TESTING:

@@ -21,20 +21,44 @@ sub _str_maybe_to_re_or_to_re {
     my $opt_ci  = defined $opt_ci1 ? $opt_ci1 : defined $opt_ci2 ? $opt_ci2 : 0;
     my $opt_always_quote = delete $opts->{always_quote};
     my $opt_anchored = delete $opts->{anchored}; $opt_anchored = 0 unless defined $opt_anchored;
+    my $opt_safety = delete $opts->{safety}; $opt_safety = 1 unless defined $opt_safety;
     die "Unknown option(s): ".join(", ", sort keys %$opts) if keys %$opts;
 
     my $str = shift;
 
-    if (!$opt_always_quote && $str =~ m!\A(?:/.*/|qr\(.*\))(?:[ims]*)\z!s) {
+    if (!$opt_always_quote && $str =~ m!\A(?:/(.*)/|qr\((.*)\))(?:[ims]*)\z!s) {
+        my ($pat1, $pat2) = ($1, $2);
         my $code = "my \$re = " . (substr($str, 0, 2) eq 'qr' ? $str : "qr$str");
         $code .= "i" if $opt_ci;
         $code .= "; \$re = qr(\\A\$re\\z)" if $opt_anchored;
+
         #print "D: $code\n";
-        my $re = eval $code; ## no critic: BuiltinFunctions::ProhibitStringyEval
-        die if $@;
+        my $re;
+
+        if ($opt_safety == 0) {
+            $re = eval $code; ## no critic: BuiltinFunctions::ProhibitStringyEval
+            die if $@;
+        } elsif ($opt_safety == 2) {
+            require Regexp::Util;
+            $re = Regexp::Util::deserialize_regexp($code);
+            die "$which(): Unsafe regex: contains embedded code"
+                if Regexp::Util::regexp_seen_evals($re);
+        } else {
+            if (defined $pat1) {
+                die "$which(): Unsafe regex: contains literal /" if $pat1 =~ m!/!;
+            } else {
+                die "$which(): Unsafe regex: contains literal )" if $pat2 =~ m!\)!;
+            }
+            my $pat = defined $pat1 ? $pat1 : $pat2;
+            die "$which(): Unsafe regex: contains embedded code" if $pat =~ m!\(\?\??\{!;
+
+            $re = eval $code; ## no critic: BuiltinFunctions::ProhibitStringyEval
+            die if $@;
+        }
+
         return $re;
     } else {
-        return $str if $which eq 'maybe_to';
+        return $str if $which eq 'str_maybe_to_re';
 
         $str = quotemeta($str);
         my $re = $opt_anchored ?
@@ -45,11 +69,11 @@ sub _str_maybe_to_re_or_to_re {
 }
 
 sub str_maybe_to_re {
-    _str_maybe_to_re_or_to_re('maybe_to', @_);
+    _str_maybe_to_re_or_to_re('str_maybe_to_re', @_);
 }
 
 sub str_to_re {
-    _str_maybe_to_re_or_to_re('to', @_);
+    _str_maybe_to_re_or_to_re('str_to_re', @_);
 }
 
 1;
@@ -86,8 +110,9 @@ Usage:
  $str_or_re = str_maybe_to_re([ \%opts , ] $str);
 
 Check if string C<$str> is in the form of C</.../> or C<qr(...)'> and if so,
-compile the inside regex (currently simply using stringy C<eval>) and return the
-resulting Regexp object. Otherwise, will simply return the argument unmodified.
+compile the inside regex (currently using stringy C<eval> or L<Safe>'s C<reval>)
+and return the resulting Regexp object. Otherwise, will simply return the
+argument unmodified.
 
 Will die if compilation fails, e.g. when the regexp syntax is invalid.
 
@@ -137,6 +162,29 @@ C<qr(...)> (the /i is also added).
 Bool. If set to true will anchor the pattern with C<\A> and C<\z>. This includes
 when the string is in the form of C</.../> or C<qr(...)> (the regexp will be
 enclosed with anchor).
+
+=item * safety
+
+Int, default 1. Valid values include 0, 1, 2.
+
+If set to 0, the compilation of string into regex will use stringy C<eval>. Note
+that this is B<insecure> as it can be tricked to execute arbitrary Perl code by
+strings like:
+
+ qr() and unlink q(hello.txt) and qr()
+
+If set to 1 (the default), compilation will use stringy C<eval> but these extra
+restrictions are added: 1) pattern inside string of the form C</.../> is not
+allowed to have literal C</> (to prevent one from getting out of the pattern);
+2) pattern inside string of the form C<qr(...)> is not allowed to have literal
+C<)> (to prevent one from getting out of the pattern); 3) pattern inside string
+cannot contain literal C<(?{> or C<(??{> (to prevent specifying embedded code
+inside regex pattern). These restrictions might be annoying in some cases.
+
+If set to 2, compilation will use L<Regexp::Util>'s C<deserialize_regexp()>,
+which in turn uses L<Safe>'s C<reval> to add some security. In addition to that,
+a check using C<Regexp::Util>'s C<regexp_seen_evals()> to reject regex that
+contains embedded Perl code.
 
 =back
 
